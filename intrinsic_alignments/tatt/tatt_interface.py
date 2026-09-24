@@ -15,20 +15,20 @@ import scipy.interpolate as interp
 
 
 class Pk_interp(object):
-    def __init__(self, ks, Pks):
+    def __init__(self, ks, Pks, kind="linear"):
         if np.all(Pks > 0):
             self.interp_func = interp.interp1d(
-                np.log(ks), np.log(Pks), bounds_error=False, fill_value=-np.inf
+                np.log(ks), np.log(Pks), kind=kind, bounds_error=False, fill_value=-np.inf
             )
             self.interp_type = "loglog"
         elif np.all(Pks < 0):
             self.interp_func = interp.interp1d(
-                np.log(ks), np.log(-Pks), bounds_error=False, fill_value=-np.inf
+                np.log(ks), np.log(-Pks), kind=kind, bounds_error=False, fill_value=-np.inf
             )
             self.interp_type = "minus_loglog"
         else:
             self.interp_func = interp.interp1d(
-                np.log(ks), Pks, bounds_error=False, fill_value=0.0
+                np.log(ks), Pks, kind=kind, bounds_error=False, fill_value=0.0
             )
             self.interp_type = "log_ell"
 
@@ -100,6 +100,7 @@ def get_IA_terms(
     z_piv,
     Omega_m,
     sub_lowk=False,
+    handover_interpolation="linear",
 ):
 
     # This function reads in PT IA terms (computed at z=0), interpolates them onto k_out,
@@ -144,7 +145,7 @@ def get_IA_terms(
         except (AssertionError, ValueError):
             # interpolate and re-apply correct growth factor if necessary
             p0_orig = p[0]
-            p0_out = Pk_interp(k_IA, p0_orig)(k_use)
+            p0_out = Pk_interp(k_IA, p0_orig, kind=handover_interpolation)(k_use)
             if key == "Plin":
                 P_IA_dict[key] = grow(p0_out, Dz, 2)
             else:
@@ -240,6 +241,14 @@ def setup(options):
     do_galaxy_intrinsic = options.get_bool(option_section, "do_galaxy_intrinsic", False)
     no_IA_E = options.get_bool(option_section, "no_IA_E", False)
     no_IA_B = options.get_bool(option_section, "no_IA_B", False)
+    # Interpolation kind (scipy interp1d) used to move the fastpt terms from the
+    # FAST-PT k grid onto the matter_power_nl k grid when the two differ:
+    # "linear" (default, the historical behaviour) or "cubic".
+    handover_interpolation = options.get_string(
+        option_section, "handover_interpolation", "linear")
+    if handover_interpolation not in ("linear", "cubic"):
+        raise ValueError("handover_interpolation must be linear or cubic, not "
+                         + handover_interpolation)
 
     if name:
         suffix = "_" + name
@@ -258,6 +267,7 @@ def setup(options):
         do_galaxy_intrinsic,
         no_IA_E,
         no_IA_B,
+        handover_interpolation,
     )
 
 
@@ -270,6 +280,7 @@ def execute(block, config):
         do_galaxy_intrinsic,
         no_IA_E,
         no_IA_B,
+        handover_interpolation,
     ) = config
 
     # Load linear and non-linear matter power spectra
@@ -345,6 +356,7 @@ def execute(block, config):
         z_piv,
         omega_m,
         sub_lowk=sub_lowk,
+        handover_interpolation=handover_interpolation,
     )
 
     ##### complete the proper IA model defintions.

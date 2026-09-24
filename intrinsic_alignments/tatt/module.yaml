@@ -52,6 +52,16 @@ params:
         meaning: Whether to turn off B-mode intrinsic alignments
         type: bool
         default: false
+    handover_interpolation:
+        meaning: Interpolation (scipy interp1d kind) that moves the fastpt terms from
+            the FAST-PT k grid onto the matter_power_nl k grid when the two grids differ,
+            'linear' or 'cubic'. It is applied in log-log for single-signed terms and to
+            the value (against log k) for sign-changing ones. With fast_pt k_res_fac =
+            0.5 (DES Y3) the linear default is the largest numerical error of the
+            FAST-PT -> IA path at large TATT amplitudes; 'cubic' removes it at a cost of
+            a few milliseconds per evaluation.
+        type: str
+        default: linear
 
 inputs:
     intrinsic_alignment_parameters:
