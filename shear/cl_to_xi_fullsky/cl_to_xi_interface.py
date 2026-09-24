@@ -265,6 +265,37 @@ def setup(options):
         else:
             legfacs = apply_filter( ell_max, high_l_filter, legfacs )
 
+    # Optional (spin2_ell_prefactor, default False): the Limber correction for
+    # spin-2 fields that CosmoLike applies to its Limber C(l) (cosmolike_core
+    # cosmo2D.c; 1812.05995 eqs. 74-79), evaluated at the integer multipoles
+    # of the Legendre sum:
+    #   xi+/- (spin 2 x spin 2): l(l-1)(l+1)(l+2)/(l+1/2)^4
+    #   gamma_t (spin 0 x spin 2): sqrt(l(l-1)(l+1)(l+2))/(l+1/2)^2
+    # It multiplies the whole input C(l) (e.g. GG+GI+II, or gG+gI+mG+mI), as
+    # CosmoLike multiplies its whole integrand. It is folded into the Legendre
+    # factors here because xi = sum_l legfac(l) C(l). Applying it to the C(l)
+    # grid of project_2d instead would give zero or complex values for l < 1
+    # and change how SpectrumInterp interpolates. The factor is 0 at l = 0, 1,
+    # where the spin-2 Legendre factors vanish anyway.
+    spin2_ell_prefactor = options.get_bool(option_section, "spin2_ell_prefactor", False)
+    if spin2_ell_prefactor:
+        ells_f = np.arange(ell_max + 1, dtype=float)
+        spin_tmp = (ells_f - 1.0) * ells_f * (ells_f + 1.0) * (ells_f + 2.0)
+        if xi_type in ["22", "22+", "22-", "EB"]:
+            spin_fac = spin_tmp / (ells_f + 0.5)**4
+        elif xi_type in ["02", "02+"]:
+            spin_fac = np.sqrt(np.clip(spin_tmp, 0.0, None)) / (ells_f + 0.5)**2
+        else:
+            raise ValueError("spin2_ell_prefactor is only defined for spin-2 correlations "
+                             "(xi_type 22, 22+, 22-, EB, 02, 02+), not xi_type = {}".format(xi_type))
+        if isinstance(legfacs, tuple):
+            legfacs = tuple(leg * spin_fac[np.newaxis, :] for leg in legfacs)
+        else:
+            legfacs = legfacs * spin_fac[np.newaxis, :]
+        print("spin2_ell_prefactor = T: C(l) multiplied by the spin-2 Limber correction "
+              "for xi_type {} (factor at l = 2, 10, 100: {:.6f} {:.6f} {:.6f})".format(
+              xi_type, spin_fac[min(2, ell_max)], spin_fac[min(10, ell_max)], spin_fac[min(100, ell_max)]))
+
     return xi_type, theta, theta_edges, ell_max, legfacs, cl_section, output_section, save_name, bin_avg, e_plus_b_name
 
 def combine_eb(block, ee_section, bb_section, e_plus_b_name):

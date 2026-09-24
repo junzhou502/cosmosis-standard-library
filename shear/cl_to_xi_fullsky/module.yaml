@@ -49,6 +49,13 @@ params:
         meaning: High-ell filter parameter to reduce ringing (0=off, 1=maximum)
         type: real
         default: 0.75
+    spin2_ell_prefactor:
+        meaning: Multiply C(l) at the integer l of the Legendre sum by the spin-2 Limber
+            correction applied by CosmoLike, l(l-1)(l+1)(l+2)/(l+1/2)^4 for xi+/- (22, 22+,
+            22-, EB) or sqrt(l(l-1)(l+1)(l+2))/(l+1/2)^2 for gamma_t (02, 02+). Not defined
+            for 00.
+        type: bool
+        default: false
     two_thirds_midpoint:
         meaning: Use 2/3-weighted midpoint for theta from bin edges
         type: bool

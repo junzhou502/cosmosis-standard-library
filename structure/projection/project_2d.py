@@ -414,6 +414,17 @@ class Spectrum(object):
         # us being computed
         c_ell *= self.get_prefactor(block, bin1, bin2)
 
+        # Optional (magnification_ell_prefactor, default False): the Limber
+        # correction for each magnification kernel, l(l+1)/(l+1/2)^2, as
+        # CosmoLike applies it to W_mag in its Limber C_gs and C_gg integrands
+        # (cosmolike_core cosmo2D.c; LoVerde & Afshordi 2008, 1812.05995 eqs.
+        # 74-79). Limber integral only; the ell here is the multipole at which
+        # P((ell+1/2)/chi) is evaluated.
+        if getattr(self.source, "magnification_ell_prefactor", False):
+            n_mag = sum(1 for p in self.prefactor_type if p == "mag")
+            if n_mag > 0:
+                c_ell = c_ell * (ell * (ell + 1.0) / (ell + 0.5)**2)**n_mag
+
         return c_ell
 
     def compute_exact(self, block, ell, bin1, bin2, dlogchi=None,
@@ -1280,6 +1291,11 @@ class SpectrumCalculator(object):
         # or  by taking a spline derivative of tabulated P(k,z)?
         self.fz_from_block = options.get_bool(option_section, "fz_from_block", False)
 
+        # Apply l(l+1)/(l+1/2)^2 per magnification kernel to the Limber C(l)
+        # (see Spectrum.compute_limber). Default False = upstream behaviour.
+        self.magnification_ell_prefactor = options.get_bool(option_section,
+            "magnification_ell_prefactor", False)
+
         self.limber_ell_start = options.get_int(option_section, "limber_ell_start", 300)
         do_exact_string = options.get_string(option_section, "do_exact", "")
         if do_exact_string=="":
@@ -1372,6 +1388,15 @@ class SpectrumCalculator(object):
 
         # Check which spectra we are requested to calculate
         self.parse_requested_spectra(options)
+        if self.magnification_ell_prefactor:
+            for spectrum in self.req_spectra:
+                if ("mag" in spectrum.prefactor_type and
+                        spectrum.section_name in self.do_exact_section_names):
+                    raise ValueError("magnification_ell_prefactor applies to the "
+                        "Limber projection only; remove {} from do_exact".format(
+                        spectrum.section_name))
+            print("magnification_ell_prefactor = T: Limber C(l) with a "
+                  "magnification kernel are multiplied by [l(l+1)/(l+1/2)^2]^n_mag")
         print("Will project these spectra into 2D:")
         for spectrum in self.req_spectra:
             print("    - ", spectrum.section_name)
